@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>练字打卡 - 好友版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { serif: ['Noto Serif SC', 'serif'] },
+                    colors: {
+                        ink: {
+                            50:'#f8f7f4',100:'#efece4',200:'#ddd7c8',300:'#c4baa3',
+                            400:'#a89a7a',500:'#8f7e5a',600:'#7a6b4c',700:'#64553e',
+                            800:'#4d4031',900:'#3a3026',
+                        },
+                        paper: '#faf8f3',
+                        vermillion: '#c44e34',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body{font-family:'Noto Serif SC',serif;background:#faf8f3;}
+        .page-transition{transition:opacity .25s ease,transform .25s ease;}
+        .page-hidden{opacity:0;transform:translateX(20px);pointer-events:none;position:absolute;top:0;left:0;width:100%;}
+        .page-visible{opacity:1;transform:translateX(0);position:relative;}
+        .calendar-day{transition:all .2s ease;}
+        .calendar-day:hover{transform:scale(1.05);}
+        .calendar-day.checked{background:#c44e34;color:white;}
+        .calendar-day.checked:hover{background:#a8402d;}
+        .calendar-day.today{border:2px solid #c44e34;}
+        .fade-in{animation:fadeIn .3s ease;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+        .slide-up{animation:slideUp .3s ease;}
+        @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+        .photo-card{transition:transform .2s,box-shadow .2s;}
+        .photo-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.12);}
+        .stat-card{transition:all .3s ease;}
+        .stat-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.08);}
+        .friend-card{transition:all .2s ease;}
+        .friend-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.08);}
+        .like-btn{transition:all .2s ease;}
+        .like-btn:active{transform:scale(1.3);}
+        .like-btn.liked{color:#c44e34;}
+        .modal-overlay{backdrop-filter:blur(4px);}
+        .rank-1{background:linear-gradient(135deg,#FFD700 0%,#FFC107 100%);}
+        .rank-2{background:linear-gradient(135deg,#C0C0C0 0%,#B0B0B0 100%);}
+        .rank-3{background:linear-gradient(135deg,#CD7F32 0%,#B87333 100%);}
+        .pulse-ring{animation:pulse-ring 2s infinite;}
+        @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(196,78,52,.4);}70%{box-shadow:0 0 0 10px rgba(196,78,52,0);}100%{box-shadow:0 0 0 0 rgba(196,78,52,0);}}
+        ::-webkit-scrollbar{width:4px;}
+        ::-webkit-scrollbar-track{background:#f1efe9;}
+        ::-webkit-scrollbar-thumb{background:#c4baa3;border-radius:2px;}
+        #cameraPreview{object-fit:cover;}
+    </style>
+</head>
+<body class="min-h-screen bg-paper text-ink-900">
+
+<!-- Toast -->
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg text-white font-medium transform -translate-y-20 transition-transform duration-300 bg-vermillion" style="max-width:90vw;">
+    <span id="toastText"></span>
+</div>
+
+<!-- ==================== LOGIN PAGE ==================== -->
+<div id="page-login" class="min-h-screen flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-sm">
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 rounded-2xl bg-vermillion flex items-center justify-center text-white text-3xl font-bold shadow-lg mx-auto mb-4">墨</div>
+            <h1 class="text-2xl font-bold text-ink-900">练字打卡</h1>
+            <p class="text-sm text-ink-500 mt-1">每日书写，好友同行</p>
+        </div>
+        <div class="bg-white rounded-2xl border border-ink-100 shadow-sm p-6">
+            <label class="block text-sm font-medium text-ink-700 mb-2">输入你的昵称</label>
+            <input type="text" id="loginName" maxlength="20" placeholder="例如：小墨、练字达人" class="w-full px-4 py-3 rounded-xl border border-ink-200 focus:outline-none focus:ring-2 focus:ring-vermillion/30 focus:border-vermillion text-base mb-4">
+            <button onclick="doLogin()" class="w-full py-3.5 bg-vermillion text-white rounded-xl font-bold text-base hover:bg-[#a8402d] transition-colors shadow-md">
+                开始练字
+            </button>
+            <p class="text-xs text-ink-400 text-center mt-3">数据保存在本地，不会上传到服务器</p>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== APP (hidden until login) ==================== -->
+<div id="app" class="hidden">
+    <!-- Header -->
+    <header class="sticky top-0 z-40 bg-paper/90 backdrop-blur-md border-b border-ink-200">
+        <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-vermillion flex items-center justify-center text-white font-bold shadow-md text-sm">墨</div>
+                <div>
+                    <h1 class="text-sm font-bold text-ink-900 leading-tight">练字打卡</h1>
+                    <p class="text-xs text-ink-500" id="headerUserName"></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button onclick="showShareModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors text-ink-600" title="分享给好友">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </button>
+                <button onclick="exportData()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors text-ink-600" title="导出数据">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </button>
+                <label class="p-2 rounded-lg hover:bg-ink-100 transition-colors text-ink-600 cursor-pointer" title="导入数据">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(this)">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <!-- Bottom Nav -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-ink-200 shadow-lg">
+        <div class="max-w-2xl mx-auto flex">
+            <button onclick="switchTab('home')" id="tab-home" class="flex-1 py-3 flex flex-col items-center gap-0.5 text-vermillion border-t-2 border-vermillion">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span class="text-xs font-medium">打卡</span>
+            </button>
+            <button onclick="switchTab('friends')" id="tab-friends" class="flex-1 py-3 flex flex-col items-center gap-0.5 text-ink-400 border-t-2 border-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span class="text-xs font-medium">好友</span>
+            </button>
+            <button onclick="switchTab('feed')" id="tab-feed" class="flex-1 py-3 flex flex-col items-center gap-0.5 text-ink-400 border-t-2 border-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span class="text-xs font-medium">动态</span>
+            </button>
+            <button onclick="switchTab('rank')" id="tab-rank" class="flex-1 py-3 flex flex-col items-center gap-0.5 text-ink-400 border-t-2 border-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                <span class="text-xs font-medium">排行</span>
+            </button>
+            <button onclick="switchTab('me')" id="tab-me" class="flex-1 py-3 flex flex-col items-center gap-0.5 text-ink-400 border-t-2 border-transparent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span class="text-xs font-medium">我的</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 py-4 pb-24 relative">
+
+        <!-- ============ HOME ============ -->
+        <div id="page-home" class="page-transition page-visible">
+            <div class="grid grid-cols-3 gap-3 mb-5">
+                <div class="stat-card bg-white rounded-xl p-3 border border-ink-100 shadow-sm text-center">
+                    <div class="text-xl font-bold text-vermillion" id="statTotal">0</div>
+                    <div class="text-xs text-ink-500 mt-0.5">累计打卡</div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-3 border border-ink-100 shadow-sm text-center">
+                    <div class="text-xl font-bold text-ink-800" id="statStreak">0</div>
+                    <div class="text-xs text-ink-500 mt-0.5">连续打卡</div>
+                </div>
+                <div class="stat-card bg-white rounded-xl p-3 border border-ink-100 shadow-sm text-center">
+                    <div class="text-xl font-bold text-ink-800" id="statMonth">0</div>
+                    <div class="text-xs text-ink-500 mt-0.5">本月打卡</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-ink-100 shadow-sm overflow-hidden mb-5">
+                <div class="flex items-center justify-between px-5 py-3 border-b border-ink-100">
+                    <button onclick="changeMonth(-1)" class="p-2 rounded-lg hover:bg-ink-50 transition-colors text-ink-600"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                    <h2 class="text-base font-bold text-ink-900" id="calendarTitle"></h2>
+                    <button onclick="changeMonth(1)" class="p-2 rounded-lg hover:bg-ink-50 transition-colors text-ink-600"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+                </div>
+                <div class="px-4 py-3">
+                    <div class="grid grid-cols-7 gap-1 mb-2">
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">日</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">一</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">二</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">三</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">四</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">五</div>
+                        <div class="text-center text-xs font-medium text-ink-400 py-1">六</div>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+                </div>
+            </div>
+
+            <div class="p-4 bg-ink-50 rounded-xl border border-ink-100">
+                <p class="text-sm text-ink-600 flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 flex-shrink-0 text-ink-400"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span>点击日历日期打卡，可拍照记录练字成果。点击底部「好友」添加好友，点击「分享」生成微信链接。</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- ============ FRIENDS ============ -->
+        <div id="page-friends" class="page-transition page-hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-ink-900">我的好友</h2>
+                <button onclick="showAddFriendModal()" class="px-4 py-2 bg-vermillion text-white rounded-lg text-sm font-medium hover:bg-[#a8402d] transition-colors flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                    添加好友
+                </button>
+            </div>
+            <div id="friendsList" class="space-y-3"></div>
+        </div>
+
+        <!-- ============ FEED ============ -->
+        <div id="page-feed" class="page-transition page-hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-ink-900">好友动态</h2>
+                <span class="text-sm text-ink-500" id="feedCount"></span>
+            </div>
+            <div id="feedList" class="space-y-4"></div>
+        </div>
+
+        <!-- ============ RANK ============ -->
+        <div id="page-rank" class="page-transition page-hidden">
+            <div class="mb-4">
+                <h2 class="text-lg font-bold text-ink-900">打卡排行榜</h2>
+                <p class="text-sm text-ink-500">好友练字进度大比拼</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-ink-100 shadow-sm overflow-hidden">
+                <div class="px-5 py-3 border-b border-ink-100 bg-ink-50">
+                    <div class="flex text-xs font-medium text-ink-600">
+                        <span class="w-12 text-center">排名</span>
+                        <span class="flex-1">好友</span>
+                        <span class="w-16 text-center">打卡</span>
+                        <span class="w-16 text-center">连续</span>
+                        <span class="w-12 text-center">赞</span>
+                    </div>
+                </div>
+                <div id="rankList"></div>
+            </div>
+        </div>
+
+        <!-- ============ ME ============ -->
+        <div id="page-me" class="page-transition page-hidden">
+            <div class="bg-white rounded-2xl border border-ink-100 shadow-sm p-6 mb-5 text-center">
+                <div class="w-20 h-20 rounded-full bg-vermillion text-white text-3xl font-bold flex items-center justify-center mx-auto mb-3 shadow-md">墨</div>
+                <h2 class="text-xl font-bold text-ink-900" id="meName"></h2>
+                <p class="text-sm text-ink-500 mt-1">ID: <span id="meId" class="font-mono text-xs"></span></p>
+                <div class="flex items-center justify-center gap-6 mt-4">
+                    <div class="text-center">
+                        <div class="text-xl font-bold text-vermillion" id="meTotal">0</div>
+                        <div class="text-xs text-ink-500">累计打卡</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-xl font-bold text-ink-800" id="meStreak">0</div>
+                        <div class="text-xs text-ink-500">当前连续</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-xl font-bold text-ink-800" id="meFriends">0</div>
+                        <div class="text-xs text-ink-500">好友数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-xl font-bold text-ink-800" id="meLikes">0</div>
+                        <div class="text-xs text-ink-500">收到赞</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-ink-100 shadow-sm overflow-hidden mb-5">
+                <button onclick="showShareModal()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-ink-50 transition-colors border-b border-ink-50">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-500"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        <span class="text-sm font-medium text-ink-800">分享给好友</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-400"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button onclick="showMyCheckins()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-ink-50 transition-colors border-b border-ink-50">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-500"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <span class="text-sm font-medium text-ink-800">我的打卡记录</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-400"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button onclick="showReport()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-ink-50 transition-colors border-b border-ink-50">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-500"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                        <span class="text-sm font-medium text-ink-800">打卡分析报告</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-400"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button onclick="exportData()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-ink-50 transition-colors border-b border-ink-50">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-500"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span class="text-sm font-medium text-ink-800">导出数据备份</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-400"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <label class="w-full px-5 py-4 flex items-center justify-between hover:bg-ink-50 transition-colors cursor-pointer">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-500"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span class="text-sm font-medium text-ink-800">导入数据备份</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-ink-400"><polyline points="9 18 15 12 9 6"/></svg>
+                    <input type="file" accept=".json" class="hidden" onchange="importData(this)">
+                </label>
+                <button onclick="logout()" class="w-full px-5 py-4 flex items-center justify-between hover:bg-red-50 transition-colors text-red-600">
+                    <span class="flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        <span class="text-sm font-medium">退出登录</span>
+                    </span>
+                </button>
+            </div>
+
+            <div class="p-4 bg-ink-50 rounded-xl border border-ink-100 mb-5">
+                <p class="text-xs text-ink-500 leading-relaxed">
+                    <strong>关于社交功能：</strong>点击「分享给好友」生成专属链接，发送给微信好友。对方打开后可查看你的进度，添加你为好友，给你点赞。所有数据保存在本地，通过链接分享同步。
+                </p>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Checkin Modal -->
+<div id="checkinModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeCheckinModal()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl slide-up max-h-[90vh] overflow-y-auto" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900" id="checkinDateTitle"></h3>
+                <button onclick="closeCheckinModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="checkinForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-ink-700 mb-2">拍照记录</label>
+                    <div id="photoSection">
+                        <div id="noPhoto" class="border-2 border-dashed border-ink-200 rounded-xl p-8 text-center cursor-pointer hover:border-vermillion transition-colors" onclick="triggerPhoto()">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-2 text-ink-400"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <p class="text-sm text-ink-500">点击拍照</p>
+                            <p class="text-xs text-ink-400 mt-1">或上传练字照片</p>
+                        </div>
+                        <div id="photoPreview" class="hidden relative">
+                            <img id="previewImg" class="w-full rounded-xl object-cover" style="max-height:300px;" alt="">
+                            <button onclick="clearPhoto()" class="absolute top-2 right-2 p-2 bg-black/50 rounded-lg text-white hover:bg-black/70 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                        </div>
+                        <div id="cameraView" class="hidden relative">
+                            <video id="cameraPreview" autoplay playsinline class="w-full rounded-xl bg-black" style="max-height:300px;"></video>
+                            <div class="absolute bottom-4 left-0 right-0 flex justify-center gap-3">
+                                <button onclick="capturePhoto()" class="w-14 h-14 rounded-full bg-white border-4 border-vermillion shadow-lg flex items-center justify-center"><div class="w-10 h-10 rounded-full bg-vermillion"></div></button>
+                                <button onclick="stopCamera()" class="px-4 py-2 rounded-full bg-black/50 text-white text-sm">取消</button>
+                            </div>
+                        </div>
+                        <input type="file" id="photoUpload" accept="image/*" class="hidden" onchange="handlePhotoUpload(event)">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-ink-700 mb-2">备注（可选）</label>
+                    <textarea id="checkinNote" rows="2" class="w-full px-4 py-3 rounded-xl border border-ink-200 focus:outline-none focus:ring-2 focus:ring-vermillion/30 focus:border-vermillion resize-none text-sm" placeholder="今天练了什么字？感觉如何？"></textarea>
+                </div>
+                <button onclick="submitCheckin()" class="w-full py-4 bg-vermillion text-white rounded-xl font-bold text-base hover:bg-[#a8402d] transition-colors shadow-md flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>确认打卡
+                </button>
+            </div>
+            <div id="alreadyCheckedView" class="hidden">
+                <div class="bg-ink-50 rounded-xl p-4 mb-4 text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-2 text-vermillion"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <p class="text-lg font-bold text-ink-800">今日已打卡</p>
+                    <p class="text-sm text-ink-500">继续保持！</p>
+                </div>
+                <div id="checkedPhoto" class="mb-4"></div>
+                <div id="checkedNote" class="mb-4"></div>
+                <button onclick="deleteCheckin()" class="w-full py-3 border border-red-300 text-red-600 rounded-xl font-medium hover:bg-red-50 transition-colors">删除此条记录</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Modal -->
+<div id="shareModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeShareModal()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl slide-up max-h-[80vh] overflow-y-auto" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900">分享给好友</h3>
+                <button onclick="closeShareModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="bg-ink-50 rounded-xl p-4 mb-4">
+                <p class="text-sm text-ink-600 mb-2">复制下方链接，发送到微信，好友打开即可查看你的练字进度！</p>
+                <div class="flex gap-2">
+                    <input type="text" id="shareLink" readonly class="flex-1 px-3 py-2 rounded-lg border border-ink-200 bg-white text-xs text-ink-800 font-mono focus:outline-none">
+                    <button onclick="copyShareLink()" class="px-4 py-2 bg-vermillion text-white rounded-lg text-sm font-medium hover:bg-[#a8402d] transition-colors whitespace-nowrap">复制</button>
+                </div>
+            </div>
+            <div id="sharePreview" class="bg-white rounded-xl border border-ink-100 p-4 mb-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-10 h-10 rounded-full bg-vermillion text-white flex items-center justify-center font-bold">墨</div>
+                    <div>
+                        <p class="font-bold text-ink-900" id="shareName"></p>
+                        <p class="text-xs text-ink-500" id="shareStats"></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-ink-50 rounded-lg p-2">
+                        <div class="text-lg font-bold text-vermillion" id="shareTotal">0</div>
+                        <div class="text-xs text-ink-500">累计</div>
+                    </div>
+                    <div class="bg-ink-50 rounded-lg p-2">
+                        <div class="text-lg font-bold text-ink-800" id="shareStreak">0</div>
+                        <div class="text-xs text-ink-500">连续</div>
+                    </div>
+                    <div class="bg-ink-50 rounded-lg p-2">
+                        <div class="text-lg font-bold text-ink-800" id="shareLikes">0</div>
+                        <div class="text-xs text-ink-500">获赞</div>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-ink-400 text-center">好友打开链接后，可添加你为好友并查看你的打卡记录</p>
+        </div>
+    </div>
+</div>
+
+<!-- Add Friend Modal -->
+<div id="addFriendModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeAddFriendModal()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl slide-up" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900">添加好友</h3>
+                <button onclick="closeAddFriendModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <p class="text-sm text-ink-600 mb-3">粘贴好友分享的链接，即可添加为好友</p>
+            <textarea id="friendLinkInput" rows="3" class="w-full px-4 py-3 rounded-xl border border-ink-200 focus:outline-none focus:ring-2 focus:ring-vermillion/30 focus:border-vermillion resize-none text-sm mb-4" placeholder="将好友的分享链接粘贴到这里..."></textarea>
+            <button onclick="addFriendFromLink()" class="w-full py-3.5 bg-vermillion text-white rounded-xl font-bold text-base hover:bg-[#a8402d] transition-colors shadow-md">添加好友</button>
+        </div>
+    </div>
+</div>
+
+<!-- Friend Detail Modal -->
+<div id="friendDetailModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeFriendDetailModal()"></div>
+    <div class="absolute inset-x-4 top-8 bottom-8 bg-white rounded-2xl shadow-2xl overflow-y-auto" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900">好友详情</h3>
+                <button onclick="closeFriendDetailModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="friendDetailContent"></div>
+        </div>
+    </div>
+</div>
+
+<!-- My Checkins Modal -->
+<div id="myCheckinsModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeMyCheckinsModal()"></div>
+    <div class="absolute inset-x-4 top-8 bottom-8 bg-white rounded-2xl shadow-2xl overflow-y-auto" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900">我的打卡记录</h3>
+                <button onclick="closeMyCheckinsModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="myCheckinsList" class="space-y-4"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div id="reportModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40" onclick="closeReportModal()"></div>
+    <div class="absolute inset-x-4 top-8 bottom-8 bg-white rounded-2xl shadow-2xl overflow-y-auto" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-ink-900">打卡分析报告</h3>
+                <button onclick="closeReportModal()" class="p-2 rounded-lg hover:bg-ink-100 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div id="reportContent"></div>
+            <div class="mt-4 flex gap-3">
+                <button onclick="downloadReport()" class="flex-1 py-3 bg-vermillion text-white rounded-xl font-bold hover:bg-[#a8402d] transition-colors">下载报告</button>
+                <button onclick="closeReportModal()" class="flex-1 py-3 border border-ink-200 text-ink-700 rounded-xl font-medium hover:bg-ink-50 transition-colors">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div id="photoModal" class="fixed inset-0 z-50 hidden" onclick="closePhotoModal()">
+    <div class="absolute inset-0 bg-black/90 flex items-center justify-center p-4">
+        <img id="photoModalImg" class="max-w-full max-h-full rounded-lg shadow-2xl" alt="">
+    </div>
+</div>
+
+<!-- Incoming Share Modal (when opening a shared link) -->
+<div id="incomingShareModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/40"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl slide-up" style="max-width:640px;margin:0 auto;">
+        <div class="p-5">
+            <div class="flex items-center gap-4 mb-4">
+                <div class="w-14 h-14 rounded-full bg-vermillion text-white text-xl font-bold flex items-center justify-center shadow-md">墨</div>
+                <div>
+                    <h3 class="text-lg font-bold text-ink-900" id="incomingName"></h3>
+                    <p class="text-sm text-ink-500" id="incomingId"></p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-5 text-center">
+                <div class="bg-ink-50 rounded-lg p-3">
+                    <div class="text-xl font-bold text-vermillion" id="incomingTotal">0</div>
+                    <div class="text-xs text-ink-500">累计打卡</div>
+                </div>
+                <div class="bg-ink-50 rounded-lg p-3">
+                    <div class="text-xl font-bold text-ink-800" id="incomingStreak">0</div>
+                    <div class="text-xs text-ink-500">连续打卡</div>
+                </div>
+                <div class="bg-ink-50 rounded-lg p-3">
+                    <div class="text-xl font-bold text-ink-800" id="incomingLikes">0</div>
+                    <div class="text-xs text-ink-500">收到点赞</div>
+                </div>
+            </div>
+            <div id="incomingRecent" class="mb-5"></div>
+            <div class="flex gap-3">
+                <button onclick="addIncomingFriend()" class="flex-1 py-3.5 bg-vermillion text-white rounded-xl font-bold hover:bg-[#a8402d] transition-colors shadow-md">添加为好友</button>
+                <button onclick="closeIncomingShareModal()" class="px-6 py-3.5 border border-ink-200 text-ink-700 rounded-xl font-medium hover:bg-ink-50 transition-colors">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+// ==================== DATA STORAGE ====================
+const STORAGE_KEY = 'calligraphy_social_v2';
+let state = {
+    me: null,           // { id, name, createdAt }
+    checkins: [],       // [{ date, note, photo, timestamp }]
+    friends: [],        // [{ id, name, checkins:[], lastUpdated, likes, receivedLikes }]
+    likes: {}          // { friendId: [date] } - 我点赞的记录
+};
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
+let currentDate = null;
+let currentPhoto = null;
+let currentStream = null;
+let incomingShareData = null;
+
+function loadData() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            state.me = parsed.me || null;
+            state.checkins = parsed.checkins || [];
+            state.friends = parsed.friends || [];
+            state.likes = parsed.likes || {};
+        }
+    } catch (e) {
+        console.error('loadData error', e);
+    }
+    checkLoginState();
+    checkIncomingShare();
+}
+
+function saveData() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+        showToast('保存失败：存储空间不足');
+        return false;
+    }
+    return true;
+}
+
+function checkLoginState() {
+    if (state.me && state.me.id) {
+        document.getElementById('page-login').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        document.getElementById('headerUserName').textContent = state.me.name;
+        updateHomeStats();
+        renderCalendar();
+        updateMePage();
+    } else {
+        document.getElementById('page-login').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+}
+
+// ==================== LOGIN ====================
+function doLogin() {
+    const name = document.getElementById('loginName').value.trim();
+    if (!name) {
+        showToast('请输入昵称');
+        return;
+    }
+    state.me = {
+        id: 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 6),
+        name: name,
+        createdAt: Date.now()
+    };
+    state.checkins = [];
+    state.friends = [];
+    state.likes = {};
+    saveData();
+    showToast('欢迎，' + name + '！');
+    checkLoginState();
+}
+
+function logout() {
+    if (!confirm('确定退出登录吗？数据仍会保存在本地。')) return;
+    state.me = null;
+    saveData();
+    document.getElementById('loginName').value = '';
+    checkLoginState();
+    showToast('已退出登录');
+}
+
+// ==================== TAB SWITCHING ====================
+function switchTab(tab) {
+    // Update nav buttons
+    const tabs = ['home','friends','feed','rank','me'];
+    tabs.forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (t === tab) {
+            btn.classList.remove('text-ink-400', 'border-transparent');
+            btn.classList.add('text-vermillion', 'border-vermillion');
+        } else {
+            btn.classList.remove('text-vermillion', 'border-vermillion');
+            btn.classList.add('text-ink-400', 'border-transparent');
+        }
+    });
+    // Update pages
+    tabs.forEach(t => {
+        const page = document.getElementById('page-' + t);
+        if (t === tab) {
+            page.classList.remove('page-hidden');
+            page.classList.add('page-visible');
+        } else {
+            page.classList.remove('page-visible');
+            page.classList.add('page-hidden');
+        }
+    });
+    // Render specific pages
+    if (tab === 'friends') renderFriends();
+    if (tab === 'feed') renderFeed();
+    if (tab === 'rank') renderRank();
+    if (tab === 'me') updateMePage();
+}
+
+// ==================== CALENDAR ====================
+function getRecord(dateStr) {
+    return state.checkins.find(c => c.date === dateStr);
+}
+function hasRecord(dateStr) {
+    return state.checkins.some(c => c.date === dateStr);
+}
+
+function renderCalendar() {
+    const year = currentYear, month = currentMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = formatDate(new Date());
+    document.getElementById('calendarTitle').textContent = year + '年' + (month + 1) + '月';
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < firstDay; i++) {
+        const e = document.createElement('div');
+        e.className = 'aspect-square';
+        grid.appendChild(e);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isToday = ds === today;
+        const record = getRecord(ds);
+        const isChecked = !!record;
+        const cell = document.createElement('button');
+        cell.className = `calendar-day aspect-square rounded-xl flex flex-col items-center justify-center relative border ${
+            isChecked ? 'checked' : 'bg-white hover:bg-ink-50 border-ink-100'
+        } ${isToday ? 'today' : ''}`;
+        cell.onclick = () => openCheckin(ds);
+        const num = document.createElement('span');
+        num.className = 'text-sm font-medium';
+        num.textContent = d;
+        cell.appendChild(num);
+        if (isChecked) {
+            const check = document.createElement('span');
+            check.className = 'text-xs mt-0.5';
+            check.innerHTML = '✓';
+            cell.appendChild(check);
+        }
+        if (isToday && !isChecked) {
+            const dot = document.createElement('span');
+            dot.className = 'absolute top-1 right-1 w-2 h-2 rounded-full bg-vermillion';
+            cell.appendChild(dot);
+        }
+        grid.appendChild(cell);
+    }
+}
+function changeMonth(delta) {
+    currentMonth += delta;
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+    renderCalendar();
+}
+function formatDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ==================== CHECKIN ====================
+function openCheckin(dateStr) {
+    currentDate = dateStr;
+    const record = getRecord(dateStr);
+    const modal = document.getElementById('checkinModal');
+    const form = document.getElementById('checkinForm');
+    const already = document.getElementById('alreadyCheckedView');
+    document.getElementById('checkinDateTitle').textContent = dateStr + ' 打卡';
+    if (record) {
+        form.classList.add('hidden');
+        already.classList.remove('hidden');
+        const pdiv = document.getElementById('checkedPhoto');
+        pdiv.innerHTML = record.photo ? `<img src="${record.photo}" class="w-full rounded-xl object-cover" style="max-height:300px;cursor:pointer;" onclick="viewPhoto('${record.photo}')">` : '';
+        const ndiv = document.getElementById('checkedNote');
+        ndiv.innerHTML = record.note ? `<p class="text-sm text-ink-600 bg-ink-50 rounded-xl p-3">${escapeHtml(record.note)}</p>` : '';
+    } else {
+        form.classList.remove('hidden');
+        already.classList.add('hidden');
+        resetCheckinForm();
+    }
+    modal.classList.remove('hidden');
+}
+function closeCheckinModal() {
+    document.getElementById('checkinModal').classList.add('hidden');
+    stopCamera();
+}
+function resetCheckinForm() {
+    currentPhoto = null;
+    document.getElementById('noPhoto').classList.remove('hidden');
+    document.getElementById('photoPreview').classList.add('hidden');
+    document.getElementById('cameraView').classList.add('hidden');
+    document.getElementById('checkinNote').value = '';
+    document.getElementById('previewImg').src = '';
+}
+function clearPhoto() {
+    currentPhoto = null;
+    document.getElementById('noPhoto').classList.remove('hidden');
+    document.getElementById('photoPreview').classList.add('hidden');
+}
+function triggerPhoto() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        document.getElementById('photoUpload').click();
+        return;
+    }
+    startCamera();
+}
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        currentStream = stream;
+        const video = document.getElementById('cameraPreview');
+        video.srcObject = stream;
+        document.getElementById('noPhoto').classList.add('hidden');
+        document.getElementById('photoPreview').classList.add('hidden');
+        document.getElementById('cameraView').classList.remove('hidden');
+    } catch (e) {
+        document.getElementById('photoUpload').click();
+    }
+}
+function stopCamera() {
+    if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
+    }
+    document.getElementById('cameraView').classList.add('hidden');
+    if (!currentPhoto) {
+        document.getElementById('noPhoto').classList.remove('hidden');
+    }
+}
+function capturePhoto() {
+    const video = document.getElementById('cameraPreview');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    currentPhoto = canvas.toDataURL('image/jpeg', 0.8);
+    stopCamera();
+    document.getElementById('noPhoto').classList.add('hidden');
+    document.getElementById('photoPreview').classList.remove('hidden');
+    document.getElementById('previewImg').src = currentPhoto;
+}
+function handlePhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        currentPhoto = e.target.result;
+        document.getElementById('noPhoto').classList.add('hidden');
+        document.getElementById('photoPreview').classList.remove('hidden');
+        document.getElementById('previewImg').src = currentPhoto;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+function submitCheckin() {
+    if (!currentDate) return;
+    const note = document.getElementById('checkinNote').value.trim();
+    const record = { date: currentDate, photo: currentPhoto, note: note, timestamp: Date.now() };
+    state.checkins.push(record);
+    if (saveData()) {
+        showToast('打卡成功！');
+        closeCheckinModal();
+        renderCalendar();
+        updateHomeStats();
+    }
+}
+function deleteCheckin() {
+    if (!confirm('确定删除这条打卡记录吗？')) return;
+    state.checkins = state.checkins.filter(c => c.date !== currentDate);
+    saveData();
+    showToast('已删除');
+    closeCheckinModal();
+    renderCalendar();
+    updateHomeStats();
+}
+
+// ==================== STATS ====================
+function updateHomeStats() {
+    const total = state.checkins.length;
+    let streak = 0;
+    const today = formatDate(new Date());
+    let check = new Date();
+    while (true) {
+        const d = formatDate(check);
+        if (hasRecord(d)) { streak++; check.setDate(check.getDate()-1); }
+        else if (d === today && streak === 0) { check.setDate(check.getDate()-1); }
+        else break;
+    }
+    const monthPrefix = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const monthCount = state.checkins.filter(c => c.date.startsWith(monthPrefix)).length;
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statStreak').textContent = streak;
+    document.getElementById('statMonth').textContent = monthCount;
+}
+function updateMePage() {
+    if (!state.me) return;
+    document.getElementById('meName').textContent = state.me.name;
+    document.getElementById('meId').textContent = state.me.id;
+    document.getElementById('meTotal').textContent = state.checkins.length;
+    let streak = 0, check = new Date();
+    const today = formatDate(new Date());
+    while (true) {
+        const d = formatDate(check);
+        if (hasRecord(d)) { streak++; check.setDate(check.getDate()-1); }
+        else if (d === today && streak === 0) { check.setDate(check.getDate()-1); }
+        else break;
+    }
+    document.getElementById('meStreak').textContent = streak;
+    document.getElementById('meFriends').textContent = state.friends.length;
+    let received = 0;
+    state.friends.forEach(f => { received += (f.receivedLikes || 0); });
+    document.getElementById('meLikes').textContent = received;
+}
+
+// ==================== SHARING ====================
+function showShareModal() {
+    if (!state.me) return;
+    const shareData = {
+        v: 1,
+        u: state.me.name,
+        id: state.me.id,
+        c: state.checkins.length,
+        s: getStreak(),
+        d: state.checkins.slice(-30).map(c => c.date),
+        n: state.checkins.slice(-5).map(c => ({d: c.date, t: c.note})),
+        l: {}
+    };
+    // Count likes I gave to each friend (they will see "received from me")
+    state.friends.forEach(f => {
+        const myLikes = state.likes[f.id] || [];
+        if (myLikes.length > 0) {
+            shareData.l[f.id] = myLikes.length;
+        }
+    });
+    const json = JSON.stringify(shareData);
+    const b64 = btoa(encodeURIComponent(json));
+    const baseUrl = window.location.href.split('#')[0].split('?')[0];
+    const shareUrl = baseUrl + '#share=' + b64;
+    document.getElementById('shareLink').value = shareUrl;
+    document.getElementById('shareName').textContent = state.me.name;
+    document.getElementById('shareStats').textContent = 'ID: ' + state.me.id.substring(0, 12) + '...';
+    document.getElementById('shareTotal').textContent = shareData.c;
+    document.getElementById('shareStreak').textContent = shareData.s;
+    let received = 0;
+    Object.values(shareData.l).forEach(v => received += v);
+    document.getElementById('shareLikes').textContent = received;
+    document.getElementById('shareModal').classList.remove('hidden');
+}
+function closeShareModal() {
+    document.getElementById('shareModal').classList.add('hidden');
+}
+function copyShareLink() {
+    const el = document.getElementById('shareLink');
+    el.select();
+    el.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(el.value).then(() => {
+        showToast('链接已复制！去微信粘贴发给好友吧');
+    }).catch(() => {
+        showToast('复制失败，请手动复制');
+    });
+}
+function getStreak() {
+    let streak = 0;
+    const today = formatDate(new Date());
+    let check = new Date();
+    while (true) {
+        const d = formatDate(check);
+        if (hasRecord(d)) { streak++; check.setDate(check.getDate()-1); }
+        else if (d === today && streak === 0) { check.setDate(check.getDate()-1); }
+        else break;
+    }
+    return streak;
+}
+
+// ==================== INCOMING SHARE ====================
+function checkIncomingShare() {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#share=')) return;
+    const b64 = hash.substring(7);
+    try {
+        const json = decodeURIComponent(atob(b64));
+        incomingShareData = JSON.parse(json);
+        if (!incomingShareData || !incomingShareData.id) return;
+        // Don't show if it's myself
+        if (state.me && state.me.id === incomingShareData.id) {
+            window.location.hash = '';
+            return;
+        }
+        // Show modal
+        document.getElementById('incomingName').textContent = incomingShareData.u || '未知用户';
+        document.getElementById('incomingId').textContent = 'ID: ' + incomingShareData.id;
+        document.getElementById('incomingTotal').textContent = incomingShareData.c || 0;
+        document.getElementById('incomingStreak').textContent = incomingShareData.s || 0;
+        let received = 0;
+        if (incomingShareData.l) {
+            Object.values(incomingShareData.l).forEach(v => received += v);
+        }
+        document.getElementById('incomingLikes').textContent = received;
+        // Recent checkins
+        const recentDiv = document.getElementById('incomingRecent');
+        if (incomingShareData.n && incomingShareData.n.length > 0) {
+            recentDiv.innerHTML = `<h4 class="text-sm font-bold text-ink-800 mb-2">最近打卡</h4>` +
+                incomingShareData.n.map(n => `
+                    <div class="flex items-center gap-2 p-2 rounded-lg bg-ink-50 mb-1">
+                        <span class="w-6 h-6 rounded-full bg-vermillion text-white flex items-center justify-center text-xs flex-shrink-0">✓</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-ink-800">${n.d}</p>
+                            ${n.t ? `<p class="text-xs text-ink-500 truncate">${escapeHtml(n.t)}</p>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+        } else {
+            recentDiv.innerHTML = '<p class="text-sm text-ink-400 text-center">暂无近期打卡记录</p>';
+        }
+        document.getElementById('incomingShareModal').classList.remove('hidden');
+    } catch (e) {
+        console.error('parse share error', e);
+    }
+}
+function addIncomingFriend() {
+    if (!incomingShareData) return;
+    if (!state.me) {
+        showToast('请先登录');
+        return;
+    }
+    // Check if already friend
+    if (state.friends.some(f => f.id === incomingShareData.id)) {
+        showToast('已经是好友了！');
+        closeIncomingShareModal();
+        window.location.hash = '';
+        return;
+    }
+    const friend = {
+        id: incomingShareData.id,
+        name: incomingShareData.u || '未命名',
+        checkins: (incomingShareData.d || []).map(d => ({date: d})),
+        lastUpdated: Date.now(),
+        likes: {},
+        receivedLikes: 0
+    };
+    if (incomingShareData.l && incomingShareData.l[state.me.id]) {
+        friend.receivedLikes = incomingShareData.l[state.me.id];
+    }
+    state.friends.push(friend);
+    saveData();
+    showToast('已添加好友：' + friend.name);
+    closeIncomingShareModal();
+    window.location.hash = '';
+    // Switch to friends tab
+    switchTab('friends');
+}
+function closeIncomingShareModal() {
+    document.getElementById('incomingShareModal').classList.add('hidden');
+    window.location.hash = '';
+}
+
+// ==================== FRIENDS ====================
+function renderFriends() {
+    const list = document.getElementById('friendsList');
+    if (state.friends.length === 0) {
+        list.innerHTML = `
+            <div class="text-center py-12 text-ink-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 opacity-50"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <p>还没有好友</p>
+                <p class="text-sm mt-1">点击「添加好友」或让好友分享链接给你</p>
+            </div>`;
+        return;
+    }
+    list.innerHTML = state.friends.map(f => {
+        const total = f.checkins ? f.checkins.length : 0;
+        const streak = calcFriendStreak(f);
+        const myLikes = state.likes[f.id] || [];
+        const today = formatDate(new Date());
+        const likedToday = myLikes.includes(today);
+        return `
+            <div class="friend-card bg-white rounded-xl border border-ink-100 shadow-sm p-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-ink-200 text-ink-600 flex items-center justify-center font-bold text-lg flex-shrink-0">${(f.name || '未').charAt(0)}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-ink-900 truncate">${escapeHtml(f.name || '未命名')}</h3>
+                            <span class="text-xs text-ink-400">${total}天</span>
+                        </div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-xs text-ink-500">连续${streak}天</span>
+                            <span class="text-xs text-ink-400">${formatTime(f.lastUpdated)}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="likeFriend('${f.id}')" class="like-btn ${likedToday ? 'liked' : ''} p-2 rounded-lg hover:bg-red-50 transition-colors" title="点赞">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="${likedToday ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        </button>
+                        <button onclick="showFriendDetail('${f.id}')" class="p-2 rounded-lg hover:bg-ink-50 transition-colors text-ink-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+function calcFriendStreak(f) {
+    if (!f.checkins || f.checkins.length === 0) return 0;
+    const dates = [...new Set(f.checkins.map(c => c.date))].sort();
+    let max = 0, cur = 0;
+    for (let i = 0; i < dates.length; i++) {
+        if (i === 0) { cur = 1; }
+        else {
+            const prev = new Date(dates[i-1] + 'T00:00:00');
+            const curr = new Date(dates[i] + 'T00:00:00');
+            const diff = (curr - prev) / (1000 * 60 * 60 * 24);
+            if (diff === 1) cur++;
+            else cur = 1;
+        }
+        max = Math.max(max, cur);
+    }
+    return max;
+}
+function formatTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = Date.now();
+    const diff = now - ts;
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+    return `${d.getMonth()+1}月${d.getDate()}日`;
+}
+function likeFriend(friendId) {
+    if (!state.likes[friendId]) state.likes[friendId] = [];
+    const today = formatDate(new Date());
+    if (state.likes[friendId].includes(today)) {
+        showToast('今天已经赞过了！');
+        return;
+    }
+    state.likes[friendId].push(today);
+    saveData();
+    showToast('已点赞！记得重新分享你的链接，让好友看到');
+    renderFriends();
+    updateMePage();
+}
+function showFriendDetail(friendId) {
+    const friend = state.friends.find(f => f.id === friendId);
+    if (!friend) return;
+    const total = friend.checkins ? friend.checkins.length : 0;
+    const streak = calcFriendStreak(friend);
+    const recent = (friend.checkins || []).slice(-7).reverse();
+    const content = document.getElementById('friendDetailContent');
+    content.innerHTML = `
+        <div class="text-center mb-4">
+            <div class="w-20 h-20 rounded-full bg-ink-200 text-ink-600 flex items-center justify-center font-bold text-2xl mx-auto mb-3">${(friend.name || '未').charAt(0)}</div>
+            <h3 class="text-xl font-bold text-ink-900">${escapeHtml(friend.name || '未命名')}</h3>
+            <p class="text-sm text-ink-500 mt-1">ID: ${friend.id.substring(0, 16)}...</p>
+        </div>
+        <div class="grid grid-cols-3 gap-2 mb-5">
+            <div class="bg-ink-50 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-vermillion">${total}</div>
+                <div class="text-xs text-ink-500">累计打卡</div>
+            </div>
+            <div class="bg-ink-50 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-ink-800">${streak}</div>
+                <div class="text-xs text-ink-500">最长连续</div>
+            </div>
+            <div class="bg-ink-50 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-ink-800">${friend.receivedLikes || 0}</div>
+                <div class="text-xs text-ink-500">收到赞</div>
+            </div>
+        </div>
+        <h4 class="text-sm font-bold text-ink-800 mb-2">最近打卡</h4>
+        <div class="space-y-2 mb-5">
+            ${recent.length > 0 ? recent.map(c => `
+                <div class="flex items-center gap-2 p-3 rounded-lg bg-ink-50">
+                    <span class="w-6 h-6 rounded-full bg-vermillion text-white flex items-center justify-center text-xs flex-shrink-0">✓</span>
+                    <span class="text-sm font-medium text-ink-800">${c.date}</span>
+                    ${c.note ? `<span class="text-xs text-ink-500 truncate flex-1">${escapeHtml(c.note)}</span>` : ''}
+                </div>
+            `).join('') : '<p class="text-sm text-ink-400 text-center py-4">暂无打卡记录</p>'}
+        </div>
+        <div class="flex gap-3">
+            <button onclick="likeFriend('${friendId}');closeFriendDetailModal();" class="flex-1 py-3 bg-vermillion text-white rounded-xl font-bold hover:bg-[#a8402d] transition-colors">点赞</button>
+            <button onclick="removeFriend('${friendId}');closeFriendDetailModal();" class="px-6 py-3 border border-red-300 text-red-600 rounded-xl font-medium hover:bg-red-50 transition-colors">删除好友</button>
+        </div>
+    `;
+    document.getElementById('friendDetailModal').classList.remove('hidden');
+}
+function closeFriendDetailModal() {
+    document.getElementById('friendDetailModal').classList.add('hidden');
+}
+function removeFriend(friendId) {
+    if (!confirm('确定删除这位好友吗？')) return;
+    state.friends = state.friends.filter(f => f.id !== friendId);
+    delete state.likes[friendId];
+    saveData();
+    showToast('已删除好友');
+    renderFriends();
+    updateMePage();
+}
+
+// ==================== ADD FRIEND ====================
+function showAddFriendModal() {
+    document.getElementById('friendLinkInput').value = '';
+    document.getElementById('addFriendModal').classList.remove('hidden');
+}
+function closeAddFriendModal() {
+    document.getElementById('addFriendModal').classList.add('hidden');
+}
+function addFriendFromLink() {
+    const link = document.getElementById('friendLinkInput').value.trim();
+    if (!link) { showToast('请输入链接'); return; }
+    // Extract share data from link
+    const hashIdx = link.indexOf('#share=');
+    if (hashIdx === -1) { showToast('无效的链接格式'); return; }
+    const b64 = link.substring(hashIdx + 7);
+    try {
+        const json = decodeURIComponent(atob(b64));
+        const data = JSON.parse(json);
+        if (!data.id) { showToast('无效的链接'); return; }
+        if (state.me && state.me.id === data.id) { showToast('不能添加自己为好友'); return; }
+        if (state.friends.some(f => f.id === data.id)) { showToast('已经是好友了'); closeAddFriendModal(); return; }
+        const friend = {
+            id: data.id,
+            name: data.u || '未命名',
+            checkins: (data.d || []).map(d => ({date: d})),
+            lastUpdated: Date.now(),
+            likes: {},
+            receivedLikes: 0
+        };
+        if (data.l && data.l[state.me.id]) {
+            friend.receivedLikes = data.l[state.me.id];
+        }
+        state.friends.push(friend);
+        saveData();
+        showToast('已添加好友：' + friend.name);
+        closeAddFriendModal();
+        renderFriends();
+        updateMePage();
+    } catch (e) {
+        showToast('链接解析失败');
+    }
+}
+
+// ==================== FEED ====================
+function renderFeed() {
+    const list = document.getElementById('feedList');
+    // Combine my checkins and friends' checkins
+    let allEntries = [];
+    state.checkins.forEach(c => {
+        allEntries.push({ type: 'me', name: state.me.name, date: c.date, note: c.note, photo: c.photo, timestamp: c.timestamp });
+    });
+    state.friends.forEach(f => {
+        (f.checkins || []).forEach(c => {
+            allEntries.push({ type: 'friend', friendId: f.id, name: f.name, date: c.date, note: c.note, timestamp: f.lastUpdated || 0 });
+        });
+    });
+    allEntries.sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+    document.getElementById('feedCount').textContent = '共 ' + allEntries.length + ' 条动态';
+    if (allEntries.length === 0) {
+        list.innerHTML = `
+            <div class="text-center py-12 text-ink-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-3 opacity-50"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <p>暂无动态</p>
+                <p class="text-sm mt-1">开始打卡或添加好友后，这里会显示动态</p>
+            </div>`;
+        return;
+    }
+    list.innerHTML = allEntries.slice(0, 50).map(e => {
+        const isMe = e.type === 'me';
+        const myLikes = isMe ? [] : (state.likes[e.friendId] || []);
+        const likedToday = myLikes.includes(e.date);
+        return `
+            <div class="bg-white rounded-xl border border-ink-100 shadow-sm p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-8 h-8 rounded-full ${isMe ? 'bg-vermillion text-white' : 'bg-ink-200 text-ink-600'} flex items-center justify-center font-bold text-sm flex-shrink-0">${e.name.charAt(0)}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm text-ink-900">${escapeHtml(e.name)}</span>
+                            <span class="text-xs text-ink-400">${e.date}</span>
+                        </div>
+                    </div>
+                </div>
+                ${e.note ? `<p class="text-sm text-ink-600 mb-2">${escapeHtml(e.note)}</p>` : ''}
+                ${e.photo ? `<img src="${e.photo}" class="w-full rounded-lg object-cover mb-2" style="max-height:200px;cursor:pointer;" onclick="viewPhoto('${e.photo}')">` : ''}
+                <div class="flex items-center justify-between pt-2 border-t border-ink-50">
+                    <span class="text-xs text-ink-400">${isMe ? '我的打卡' : '好友打卡'}</span>
+                    ${!isMe ? `
+                        <button onclick="likeFeed('${e.friendId}', '${e.date}')" class="like-btn ${likedToday ? 'liked' : ''} flex items-center gap-1 text-sm text-ink-500 hover:text-vermillion transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="${likedToday ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                            <span>${likedToday ? '已赞' : '点赞'}</span>
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+function likeFeed(friendId, date) {
+    if (!state.likes[friendId]) state.likes[friendId] = [];
+    if (state.likes[friendId].includes(date)) {
+        showToast('已经赞过这条打卡了');
+        return;
+    }
+    state.likes[friendId].push(date);
+    saveData();
+    showToast('已点赞！');
+    renderFeed();
+    updateMePage();
+}
+
+// ==================== RANK ====================
+function renderRank() {
+    const entries = [];
+    // Self
+    const myStreak = getStreak();
+    const myTotal = state.checkins.length;
+    const myReceivedLikes = state.friends.reduce((sum, f) => sum + (f.receivedLikes || 0), 0);
+    entries.push({ name: state.me.name + ' (我)', total: myTotal, streak: myStreak, likes: myReceivedLikes, isMe: true });
+    // Friends
+    state.friends.forEach(f => {
+        const total = f.checkins ? f.checkins.length : 0;
+        const streak = calcFriendStreak(f);
+        entries.push({ name: f.name, total: total, streak: streak, likes: f.receivedLikes || 0, isMe: false });
+    });
+    // Sort by total desc
+    entries.sort((a, b) => b.total - a.total);
+    const list = document.getElementById('rankList');
+    list.innerHTML = entries.map((e, i) => {
+        const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'bg-ink-100';
+        const rankText = i < 3 ? '' : (i + 1);
+        return `
+            <div class="flex items-center px-5 py-3 ${i < entries.length - 1 ? 'border-b border-ink-50' : ''} ${e.isMe ? 'bg-ink-50/50' : ''}">
+                <div class="w-8 h-8 rounded-full ${rankClass} flex items-center justify-center text-sm font-bold flex-shrink-0 ${i < 3 ? 'text-white' : 'text-ink-600'}">
+                    ${rankText || (i === 0 ? '1' : i === 1 ? '2' : '3')}
+                </div>
+                <div class="flex-1 ml-3 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-ink-900 truncate">${escapeHtml(e.name)}</span>
+                        ${e.isMe ? '<span class="text-xs text-vermillion font-medium">我</span>' : ''}
+                    </div>
+                </div>
+                <div class="w-16 text-center">
+                    <span class="text-sm font-bold text-ink-800">${e.total}</span>
+                </div>
+                <div class="w-16 text-center">
+                    <span class="text-sm text-ink-600">${e.streak}</span>
+                </div>
+                <div class="w-12 text-center">
+                    <span class="text-sm text-vermillion">${e.likes > 0 ? '❤' + e.likes : ''}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ==================== REPORT ====================
+function showReport() {
+    const total = state.checkins.length;
+    let streak = getStreak();
+    let maxStreak = 0, temp = 0;
+    const sorted = [...new Set(state.checkins.map(c => c.date))].sort();
+    for (let i = 0; i < sorted.length; i++) {
+        if (i === 0) temp = 1;
+        else {
+            const prev = new Date(sorted[i-1] + 'T00:00:00');
+            const curr = new Date(sorted[i] + 'T00:00:00');
+            const diff = (curr - prev) / (1000 * 60 * 60 * 24);
+            if (diff === 1) temp++;
+            else temp = 1;
+        }
+        maxStreak = Math.max(maxStreak, temp);
+    }
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const monthPrefix = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const monthCount = state.checkins.filter(c => c.date.startsWith(monthPrefix)).length;
+    const rate = Math.round((monthCount / daysInMonth) * 100);
+    const monthly = {};
+    state.checkins.forEach(c => { const k = c.date.substring(0,7); monthly[k] = (monthly[k] || 0) + 1; });
+    const bestMonth = Object.entries(monthly).sort((a, b) => b[1] - a[1])[0];
+    let evalText = '';
+    if (total === 0) evalText = '还没有开始打卡，快行动起来吧！';
+    else if (streak >= 30) evalText = '太厉害了！连续打卡超过30天，练字习惯已稳固！';
+    else if (streak >= 14) evalText = '非常棒！连续打卡超过两周，习惯正在养成中。';
+    else if (streak >= 7) evalText = '不错！连续打卡一周，坚持就是胜利！';
+    else if (streak >= 3) evalText = '开始养成习惯了呢，继续保持！';
+    else evalText = '每一次打卡都是进步，不要放弃，坚持下去！';
+    // Friend comparison
+    let friendStats = '';
+    if (state.friends.length > 0) {
+        const avgTotal = Math.round(state.friends.reduce((s, f) => s + (f.checkins ? f.checkins.length : 0), 0) / state.friends.length);
+        const comparison = total >= avgTotal ? '超过' : '低于';
+        friendStats = `<p class="text-sm text-ink-600 mt-2">📊 与好友对比：你${comparison}好友平均打卡数（${avgTotal}天）</p>`;
+    }
+    document.getElementById('reportContent').innerHTML = `
+        <div class="space-y-5">
+            <div class="text-center p-4 bg-ink-50 rounded-xl border border-ink-100">
+                <p class="text-sm text-ink-500 mb-1">${formatDate(new Date())}</p>
+                <h3 class="text-xl font-bold text-ink-900">${state.me.name} 的练字报告</h3>
+                <p class="text-sm text-ink-600 mt-2">${evalText}</p>
+                ${friendStats}
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-ink-50 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-vermillion">${total}</div><div class="text-xs text-ink-500">累计打卡</div></div>
+                <div class="bg-ink-50 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-ink-800">${streak}</div><div class="text-xs text-ink-500">当前连续</div></div>
+                <div class="bg-ink-50 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-ink-800">${maxStreak}</div><div class="text-xs text-ink-500">最长连续</div></div>
+                <div class="bg-ink-50 rounded-xl p-3 text-center"><div class="text-2xl font-bold text-ink-800">${rate}%</div><div class="text-xs text-ink-500">本月完成率</div></div>
+            </div>
+            ${bestMonth ? `<div class="bg-white rounded-xl border border-ink-100 p-4"><p class="text-sm text-ink-600">🏆 最佳打卡月份：<span class="font-bold text-ink-900">${bestMonth[0]}</span>，共打卡 <span class="font-bold text-vermillion">${bestMonth[1]}</span> 天</p></div>` : ''}
+            <div class="bg-white rounded-xl border border-ink-100 p-4">
+                <h4 class="text-sm font-bold text-ink-800 mb-3">打卡记录</h4>
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                    ${[...state.checkins].sort((a, b) => b.timestamp - a.timestamp).map(c => `
+                        <div class="flex items-center gap-2 p-2 rounded-lg bg-ink-50">
+                            <span class="w-6 h-6 rounded-full bg-vermillion text-white flex items-center justify-center text-xs flex-shrink-0">✓</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-ink-800">${c.date}</p>
+                                ${c.note ? `<p class="text-xs text-ink-500 truncate">${escapeHtml(c.note)}</p>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="text-center text-xs text-ink-400">
+                <p>生成时间：${new Date().toLocaleString('zh-CN')}</p>
+                <p class="mt-1">练字打卡 - 好友版</p>
+            </div>
+        </div>
+    `;
+    document.getElementById('reportModal').classList.remove('hidden');
+}
+function closeReportModal() {
+    document.getElementById('reportModal').classList.add('hidden');
+}
+function downloadReport() {
+    const content = document.getElementById('reportContent').innerHTML;
+    const full = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>练字打卡报告</title><script src="https://cdn.tailwindcss.com"></script><style>body{font-family:serif;background:#faf8f3;color:#3a3026;padding:20px;}</style></head><body><div class="max-w-lg mx-auto">${content}</div></body></html>`;
+    const blob = new Blob([full], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `练字打卡报告_${formatDate(new Date())}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('报告已下载');
+}
+
+// ==================== MY CHECKINS ====================
+function showMyCheckins() {
+    const list = document.getElementById('myCheckinsList');
+    const sorted = [...state.checkins].sort((a, b) => b.timestamp - a.timestamp);
+    if (sorted.length === 0) {
+        list.innerHTML = '<p class="text-center text-ink-400 py-8">暂无打卡记录</p>';
+    } else {
+        list.innerHTML = sorted.map(c => {
+            const date = new Date(c.date + 'T00:00:00');
+            const weekday = ['周日','周一','周二','周三','周四','周五','周六'][date.getDay()];
+            return `
+                <div class="photo-card bg-white rounded-xl border border-ink-100 shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-ink-50">
+                        <span class="text-sm font-bold text-ink-900">${c.date} ${weekday}</span>
+                    </div>
+                    ${c.photo ? `<img src="${c.photo}" class="w-full object-cover" style="max-height:200px;cursor:pointer;" onclick="viewPhoto('${c.photo}')">` : ''}
+                    ${c.note ? `<div class="px-4 py-2"><p class="text-sm text-ink-600">${escapeHtml(c.note)}</p></div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+    document.getElementById('myCheckinsModal').classList.remove('hidden');
+}
+function closeMyCheckinsModal() {
+    document.getElementById('myCheckinsModal').classList.add('hidden');
+}
+
+// ==================== PHOTO ====================
+function viewPhoto(src) {
+    document.getElementById('photoModalImg').src = src;
+    document.getElementById('photoModal').classList.remove('hidden');
+}
+function closePhotoModal() {
+    document.getElementById('photoModal').classList.add('hidden');
+}
+
+// ==================== EXPORT / IMPORT ====================
+function exportData() {
+    const data = { version: 2, exportedAt: Date.now(), data: state };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `练字打卡数据_${formatDate(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('数据已导出');
+}
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.data) {
+                if (confirm(`检测到数据备份，是否导入？这将覆盖当前数据。`)) {
+                    state = data.data;
+                    saveData();
+                    checkLoginState();
+                    showToast('数据导入成功');
+                }
+            } else {
+                showToast('无效的数据文件');
+            }
+        } catch (err) {
+            showToast('导入失败：文件格式错误');
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
+}
+
+// ==================== UTILS ====================
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toastText').textContent = msg;
+    toast.classList.remove('-translate-y-20');
+    toast.classList.add('translate-y-0');
+    setTimeout(() => {
+        toast.classList.remove('translate-y-0');
+        toast.classList.add('-translate-y-20');
+    }, 2500);
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+});
+</script>
+</body>
+</html>
